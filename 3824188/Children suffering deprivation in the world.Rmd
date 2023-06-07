@@ -1,0 +1,166 @@
+---
+title: "Children suffering deprivation in the world"
+subtitle: "***Unicef: Building A Better World For Every Child***"
+author: "Cindy LAUP"
+date: '2022-04-04'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Our Mission
+
+We conducted a study **around the globe** *from 2014 to 2018* to identify and measure a number of **different indices**.
+
+This study focuses on countries around the world where **children aged 5 years old and over are suffering from deprivation**. Access to water, nutrition, medical care, education, protection, information and the *tools necessary for survival are* **not guaranteed**.
+
+```{r libraries, include = FALSE}
+# options ------------------------------------------------------------------
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, error = FALSE, warning = FALSE)
+
+# Libraries ----------------------------------------------------------------
+# install.packages("tidyverse")
+  library(tidyverse)
+# install.packages("maps")
+  library(maps)
+
+# Scientific notation -----------------------------------------------------
+options(scipen = 999)
+
+# Data download -----------------------------------------------------------
+unicef_metadata <- read_csv("unicef_metadata.csv")
+unicef_indicator_1 <- read_csv("unicef_indicator_1.csv")
+unicef_indicator_2 <- read_delim("unicef_indicator_2.csv", 
+delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+# Full table data ---------------------------------------------------------
+manual_join <- right_join(unicef_metadata, unicef_indicator_1, by = c("country", "alpha_2_code", "alpha_3_code", "numeric_code", "year" = "time_period"))
+write_csv(manual_join, "manual_join.csv")
+
+# Prep Map ----------------------------------------------------------------
+map_deprivation <- filter(manual_join, obs_value > 0.02)
+map_world <- map_data("world") 
+map_world_deprivation <- left_join(map_world, map_deprivation, by = c("region" = "country"))
+
+# Prep Bar chart ----------------------------------------------------------
+deprivation <- map_deprivation %>%
+  filter(sex == "Total") %>%
+  mutate(pop = (obs_value*`Population, total`)/1000000)
+
+# Prep Scatterplot --------------------------------------------------------
+full_join <- full_join(unicef_metadata, unicef_indicator_1, by = c("country", "alpha_2_code", "alpha_3_code", "numeric_code", "year" = "time_period"))
+life_exp <- full_join %>% 
+  select(country, year, GDP = `GDP per capita (constant 2015 US$)`) %>%
+  filter(country == c('Angola', 'Madagascar', 'Ethiopia', 'Togo', 'Benin', 'Chad', "Lao" = "Lao People's Democratic Republic"))
+
+# Prep Time Serie Chart ---------------------------------------------------
+comparision <- full_join %>% 
+  select(country, year, population = 'Population, total') %>%
+  mutate (pop = population/1000000) %>%
+  filter(country == c('Madagascar', 'Ethiopia'))
+```
+
+## World Map
+
+```{r map, fig.height = 6, fig.width = 10, echo = FALSE}
+# Map ---------------------------------------------------------------------
+ggplot(data = map_world_deprivation) +
+  aes(x = long, y = lat, group = group, fill = obs_value) +
+  geom_polygon(color = "black", size = 0.3) +
+  scale_fill_gradient(low = "yellow", high = "darkblue", na.value = "grey47") +
+  labs(
+    title = "Countries where children suffer deprivation",
+    subtitle = "Countries couloured have registered >0,02% of deprivation",
+    x = "Longitude", 
+    y = "Latitude",
+    fill = "Percentage of children 
+suffering deprivation"
+       ) +
+  theme_light() +
+  theme(text = element_text(size = 10, colour = "deepskyblue4"))
+```
+
+**Seven countries** around the world has registered a rate of *children aged 5 years and over are suffering from deprivation* **over 0,02%**.
+
+-   Angola
+-   Benin
+-   Chad
+-   Ethiopia
+-   Lao People's Democratic Republic
+-   Madagascar
+-   Togo
+
+## Seven countries
+
+```{r barchart, fig.height = 6, fig.width = 10, echo = FALSE}
+# Bar chart ---------------------------------------------------------------
+ggplot(data = deprivation) +
+  aes(x = alpha_3_code, y = obs_value, group = year, fill = alpha_3_code) +
+  geom_col(position = position_dodge(1), col="blue", size = 0.3) +
+  scale_fill_brewer(palette = "Set2") +
+  geom_text(aes(label = pop), vjust = 20, size = 2.5, col = "orangered3") +
+  geom_text(aes(label = year), vjust = 2.5, size = 4, col = "blue") +
+  geom_text(aes(label = country), vjust = 5, hjust = 0.5, size = 3, col = "grey15") +
+  labs(
+    title = "Rate of children over 5 suffering deprivation per country per year",
+    subtitle = "Data from 2014 to 2018", 
+    x = "Country", 
+    y = "Percentage of children suffering deprivation", 
+    fill = "Country",
+    caption = "In red, the number of children suffering deprivation in million.",
+  ) +
+  theme_light() +
+  theme(text = element_text(size = 10, colour = "deepskyblue4")) +
+  theme(legend.position = "none")
+```
+
+The highest child deprivation score was registered in 2018 on the **island of Madagascar**, with *0,067%* of children at risk. It is followed by **Ethiopia**, who has recorded a rate of *0,042%* in 2016. We calculated the number of children affected by deprivation (result in million). This represents *1,75 million* **children affected** in Madagascar and *4,32 million* in Ethiopia.
+
+## Gross Domestic Product
+
+```{r scatterplot, fig.height = 6, fig.width = 10, echo = FALSE}
+
+# Scatterplot -------------------------------------------------------------
+ggplot(life_exp) +
+  aes(x = year, y = GDP, color = country) +
+  geom_point(alpha = 0.6, size = 1) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~ country, nrow = 1) +
+  scale_x_continuous(breaks = c(1960, 1980, 2000, 2020)) +
+  labs(
+    x = "Year",
+    y = "GDP per capita (US$)",
+    title = "Evolution of the GDP per capita from 1960 to 2018 per country"
+  ) +
+  theme_classic() +
+  theme(text = element_text(size = 10, colour = "deepskyblue4")) +
+  guides(color ="none")
+```
+
+From 1960 to 2020, the Gross Domestic Product of 6 of the countries has developed positively. The calculation of the GDP is based on the assets owned by residents. However, **Madagascar has seen a significant decline** in this index over the past *60 years*. **The country's financial situation is deteriorating**. Ethiopia's GDP remain low and not sufficient.
+
+## Populations
+
+```{r timeseries, fig.height = 6, fig.width = 10, echo = FALSE}
+# Time Serie Chart --------------------------------------------------------
+ggplot(comparision, aes(x = year, y = pop)) + 
+  geom_area(aes(color = country, fill = country), 
+            alpha = 0.5, position = position_dodge(0.8)) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800")) +
+labs(
+  x = "Year",
+  y = "Population (million)",
+  title = "Evolution of the populations of Ethiopia and Madagascar in 60 years"
+) +
+  theme_classic() +
+  theme(text = element_text(size = 10, colour = "deepskyblue4"))
+```
+
+After our previous results, we conducted a comparison between the populations of **Ethiopia and Madagascar**, who has registered high rates of child deprivation. Ethiopia's population has *tripled in 60 years* and is today *5 times the population of Madagascar*.
+
+It is more than 6 million children in need for help in both countries, which represent 1/20th of their accumulated populations.
+
+### **We must act now**. Visit the Unicef Website to take action. [*https://www.unicef.org/what-we-do*](https://www.unicef.org/what-we-do){.uri}
